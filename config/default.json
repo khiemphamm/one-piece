@@ -1,0 +1,36 @@
+{
+  "app": {
+    "name": "Tool Live",
+    "version": "1.0.0",
+    "maxViewers": 30,
+    "minViewers": 1,
+    "defaultViewerCount": 20
+  },
+  "browser": {
+    "headless": true,
+    "args": [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--disable-gpu",
+      "--mute-audio"
+    ]
+  },
+  "session": {
+    "minDurationMs": 300000,
+    "maxDurationMs": 900000,
+    "startupStaggerMs": 2000
+  },
+  "proxy": {
+    "maxFailCount": 3,
+    "healthCheckIntervalMs": 60000
+  },
+  "logging": {
+    "level": "info",
+    "maxFiles": 10,
+    "maxSize": "10m"
+  }
+}
