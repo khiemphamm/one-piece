@@ -27,14 +27,20 @@ contextBridge.exposeInMainWorld('electron', {
 });
 
 // Type definitions for window.electron
+export interface IPCResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
 export interface ElectronAPI {
-  startSession: (url: string, viewerCount: number) => Promise<void>;
-  stopSession: () => Promise<void>;
-  forceStopSession: () => Promise<void>; // NEW: Force stop
-  getSessionStatus: () => Promise<any>;
-  addProxies: (proxies: string[]) => Promise<void>;
-  getProxies: () => Promise<any[]>;
-  removeProxy: (proxyId: number) => Promise<void>;
+  startSession: (url: string, viewerCount: number) => Promise<IPCResponse>;
+  stopSession: () => Promise<IPCResponse>;
+  forceStopSession: () => Promise<IPCResponse>;
+  getSessionStatus: () => Promise<IPCResponse>;
+  addProxies: (proxies: string[]) => Promise<IPCResponse>;
+  getProxies: () => Promise<IPCResponse>;
+  removeProxy: (proxyId: number) => Promise<IPCResponse>;
   onLog: (callback: (log: any) => void) => void;
   onStatsUpdate: (callback: (stats: any) => void) => void;
 }
