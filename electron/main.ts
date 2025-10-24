@@ -28,7 +28,9 @@ function createWindow() {
     mainWindow.loadURL('http://localhost:5173');
     mainWindow.webContents.openDevTools();
   } else {
-    mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+    // In packaged app: __dirname is resources/app/dist/electron/electron
+    // We need to go to: resources/app/dist/renderer/index.html
+    mainWindow.loadFile(path.join(__dirname, '../../renderer/index.html'));
   }
 
   // Show window when ready
