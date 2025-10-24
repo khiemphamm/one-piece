@@ -13,6 +13,9 @@ export interface ProxyStats {
   active: number;
   failed: number;
   pending: number;
+  currentViewers?: number;
+  totalCapacity?: number;
+  availableCapacity?: number;
 }
 
 export interface Proxy {
@@ -22,6 +25,8 @@ export interface Proxy {
   status: 'active' | 'failed' | 'pending';
   fail_count: number;
   success_count: number;
+  max_viewers_per_proxy: number;
+  current_viewers: number;
 }
 
 export interface StatsUpdate {

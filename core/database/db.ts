@@ -170,6 +170,8 @@ function initializeTables() {
       last_checked DATETIME,
       fail_count INTEGER DEFAULT 0,
       success_count INTEGER DEFAULT 0,
+      max_viewers_per_proxy INTEGER DEFAULT 5,
+      current_viewers INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);

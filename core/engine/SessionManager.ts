@@ -7,6 +7,8 @@ import { ResourceMonitor } from '../utils/resource-monitor';
 export interface SessionConfig {
   livestreamUrl: string;
   viewerCount: number;
+  useProxyAllocation?: boolean; // Enable smart proxy allocation feature
+  maxViewersPerProxy?: number; // Override default max viewers per proxy
 }
 
 export interface SessionStats {
@@ -23,6 +25,7 @@ export class SessionManager {
   private isRunning = false;
   private resourceMonitor = new ResourceMonitor();
   private statsInterval: NodeJS.Timeout | null = null;
+  private proxyAllocations: Map<number, number[]> = new Map(); // Track which viewers use which proxy
 
   /**
    * Start a new viewing session
@@ -52,12 +55,64 @@ export class SessionManager {
 
       logger.info(`Starting ${config.viewerCount} viewers with session ID ${this.currentSessionId}`);
 
+      // Update max viewers per proxy if specified
+      if (config.maxViewersPerProxy && config.maxViewersPerProxy > 0) {
+        ProxyManager.updateAllProxiesMaxViewers(config.maxViewersPerProxy);
+        logger.info(`Updated all proxies to max ${config.maxViewersPerProxy} viewers per proxy`);
+      }
+
+      // Check if we should use proxy allocation feature
+      const useProxyAllocation = config.useProxyAllocation !== false; // Default to true
+      
+      if (useProxyAllocation) {
+        logger.info('Using smart proxy allocation feature');
+        const proxyStats = ProxyManager.getStats();
+        
+        if (proxyStats.availableCapacity < config.viewerCount) {
+          logger.warn(`Insufficient proxy capacity! Needed: ${config.viewerCount}, Available: ${proxyStats.availableCapacity}`);
+          logger.warn('Some viewers will share proxies or may not have proxies assigned');
+        }
+      }
+
       // Start viewers with staggered delays
       const STAGGER_DELAY = 5000; // INCREASED: 5 seconds (was 2s - too fast causing CPU spike!)
 
       for (let i = 0; i < config.viewerCount; i++) {
-        // Get proxy
-        const proxy = ProxyManager.getAvailableProxy();
+        // Get proxy based on allocation strategy
+        let proxy = null;
+        
+        if (useProxyAllocation) {
+          // NEW: Use smart allocation - get proxy with available capacity
+          proxy = ProxyManager.getAvailableProxyWithCapacity();
+          
+          if (proxy && proxy.id) {
+            // Allocate viewer slot to this proxy
+            const allocated = ProxyManager.allocateViewerToProxy(proxy.id);
+            
+            if (!allocated) {
+              // Allocation failed, try to get another proxy
+              proxy = ProxyManager.getAvailableProxyWithCapacity();
+              if (proxy && proxy.id) {
+                ProxyManager.allocateViewerToProxy(proxy.id);
+              }
+            }
+            
+            // Track allocation
+            if (proxy && proxy.id) {
+              if (!this.proxyAllocations.has(proxy.id)) {
+                this.proxyAllocations.set(proxy.id, []);
+              }
+              this.proxyAllocations.get(proxy.id)!.push(i);
+            }
+          }
+        } else {
+          // OLD: Use legacy method - simple round-robin
+          proxy = ProxyManager.getAvailableProxy();
+        }
+
+        if (!proxy) {
+          logger.warn(`No available proxy for viewer #${i + 1}`);
+        }
 
         const viewerSession = new ViewerSession({
           url: config.livestreamUrl,
@@ -93,9 +148,14 @@ export class SessionManager {
               error: error instanceof Error ? error.message : String(error),
             });
 
+            // Release proxy allocation on failure
+            if (proxy && proxy.id && useProxyAllocation) {
+              ProxyManager.releaseViewerFromProxy(proxy.id);
+            }
+
             // Mark proxy as failed if used
-            if (proxy) {
-              ProxyManager.markProxyFailed(proxy.id!);
+            if (proxy && proxy.id) {
+              ProxyManager.markProxyFailed(proxy.id);
             }
 
             // Record failed viewer session (with validation)
@@ -177,6 +237,15 @@ export class SessionManager {
 
       logger.info(`All ${this.sessions.length} viewers stopped`);
 
+      // Release all proxy allocations
+      for (const [proxyId, viewerIndices] of this.proxyAllocations.entries()) {
+        for (let j = 0; j < viewerIndices.length; j++) {
+          ProxyManager.releaseViewerFromProxy(proxyId);
+        }
+        logger.debug(`Released ${viewerIndices.length} viewer slots from proxy ${proxyId}`);
+      }
+      this.proxyAllocations.clear();
+
       // Update database
       if (this.currentSessionId) {
         db.prepare(`
@@ -209,6 +278,7 @@ export class SessionManager {
       this.isRunning = false;
       this.sessions = [];
       this.currentSessionId = null;
+      this.proxyAllocations.clear();
       if (this.statsInterval) {
         clearInterval(this.statsInterval);
         this.statsInterval = null;
@@ -252,6 +322,7 @@ export class SessionManager {
     // Force cleanup
     this.sessions = [];
     this.currentSessionId = null;
+    this.proxyAllocations.clear();
 
     logger.info('Force stop completed');
   }

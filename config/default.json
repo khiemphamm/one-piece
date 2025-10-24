@@ -26,7 +26,9 @@
   },
   "proxy": {
     "maxFailCount": 3,
-    "healthCheckIntervalMs": 60000
+    "healthCheckIntervalMs": 60000,
+    "maxViewersPerProxy": 5,
+    "useSmartAllocation": true
   },
   "logging": {
     "level": "info",

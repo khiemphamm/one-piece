@@ -18,6 +18,7 @@ A powerful desktop application for managing YouTube livestream viewer engagement
 
 - **Automated Viewer Management**: Simulate 20-30 concurrent viewers for YouTube livestreams
 - **Smart Proxy Support**: Rotate between HTTP, HTTPS, and SOCKS5 proxies
+- **🆕 Proxy Allocation System**: Intelligently distribute viewers across proxies with capacity limits
 - **Anti-Detection**: Advanced browser fingerprinting and stealth techniques
 - **Resource Monitoring**: Real-time CPU and memory usage tracking
 - **User-Friendly UI**: Clean, modern interface built with React and Tailwind CSS
@@ -157,9 +158,37 @@ This tool implements several techniques to avoid detection:
 
 SQLite database stores:
 - **sessions**: Livestream session history
-- **proxies**: Proxy pool with health status
+- **proxies**: Proxy pool with health status (now with allocation tracking)
 - **viewer_sessions**: Individual viewer instances
 - **logs**: Application logs
+
+## 🆕 New Feature: Proxy Allocation System
+
+The Proxy Allocation feature intelligently distributes viewers across proxies with capacity limits:
+
+- **Smart Load Balancing**: Automatically distributes viewers evenly across available proxies
+- **Capacity Control**: Set max viewers per proxy to avoid detection
+- **Real-time Tracking**: Monitor current viewer allocation per proxy
+- **Auto Release**: Automatically frees up proxy slots when viewers stop
+
+### Quick Example
+
+```typescript
+// Start session with smart proxy allocation
+await SessionManager.startSession({
+  livestreamUrl: 'https://youtube.com/watch?v=YOUR_VIDEO',
+  viewerCount: 20,
+  maxViewersPerProxy: 5  // Max 5 viewers per proxy
+});
+
+// Check proxy capacity
+const stats = ProxyManager.getStats();
+console.log(`Available capacity: ${stats.availableCapacity} viewers`);
+```
+
+📖 **Full Documentation**: See [PROXY_ALLOCATION_FEATURE.md](./PROXY_ALLOCATION_FEATURE.md) for complete guide  
+⚡ **Quick Start**: See [PROXY_ALLOCATION_QUICK_START.md](./PROXY_ALLOCATION_QUICK_START.md)  
+🧪 **Examples**: See [examples/proxy-allocation-examples.ts](./examples/proxy-allocation-examples.ts)
 
 ## ⚠️ Disclaimer
 

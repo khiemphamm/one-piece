@@ -57,13 +57,49 @@ export class ViewerSession {
         ],
       };
 
-      // Add proxy if available
+      // Parse proxy URL to extract host/port and credentials
+      let proxyHost: string | null = null;
+      let proxyUsername: string | null = null;
+      let proxyPassword: string | null = null;
+
       if (this.config.proxy) {
-        launchOptions.args.push(`--proxy-server=${this.config.proxy.proxy_url}`);
+        try {
+          const proxyUrl = new URL(this.config.proxy.proxy_url);
+          
+          // Extract host and port
+          proxyHost = `${proxyUrl.protocol}//${proxyUrl.hostname}:${proxyUrl.port}`;
+          
+          // Extract credentials if present
+          if (proxyUrl.username && proxyUrl.password) {
+            proxyUsername = decodeURIComponent(proxyUrl.username);
+            proxyPassword = decodeURIComponent(proxyUrl.password);
+          }
+          
+          // Add proxy server to launch args
+          launchOptions.args.push(`--proxy-server=${proxyHost}`);
+          
+          logger.debug(`Configured proxy for viewer #${this.config.viewerIndex}`, {
+            host: proxyHost,
+            hasAuth: !!(proxyUsername && proxyPassword),
+          });
+        } catch (proxyError) {
+          logger.warn(`Failed to parse proxy URL for viewer #${this.config.viewerIndex}`, {
+            error: proxyError instanceof Error ? proxyError.message : String(proxyError),
+          });
+        }
       }
 
       this.browser = await puppeteerExtra.launch(launchOptions);
       this.page = await this.browser.newPage();
+
+      // Authenticate proxy if credentials are present
+      if (proxyUsername && proxyPassword) {
+        await this.page.authenticate({
+          username: proxyUsername,
+          password: proxyPassword,
+        });
+        logger.debug(`Authenticated proxy for viewer #${this.config.viewerIndex}`);
+      }
 
       // OPTIMIZATION: Block images, CSS, fonts to reduce CPU/RAM
       await this.page.setRequestInterception(true);
