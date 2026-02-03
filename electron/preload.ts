@@ -4,8 +4,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('electron', {
   // Session management
-  startSession: (url: string, viewerCount: number) =>
-    ipcRenderer.invoke('start-session', url, viewerCount),
+  startSession: (url: string, viewerCount: number, platform?: 'youtube' | 'tiktok') =>
+    ipcRenderer.invoke('start-session', url, viewerCount, platform),
   stopSession: () => ipcRenderer.invoke('stop-session'),
   forceStopSession: () => ipcRenderer.invoke('force-stop-session'), // NEW: Force stop
   getSessionStatus: () => ipcRenderer.invoke('get-session-status'),
@@ -34,7 +34,7 @@ export interface IPCResponse<T = any> {
 }
 
 export interface ElectronAPI {
-  startSession: (url: string, viewerCount: number) => Promise<IPCResponse>;
+  startSession: (url: string, viewerCount: number, platform?: 'youtube' | 'tiktok') => Promise<IPCResponse>;
   stopSession: () => Promise<IPCResponse>;
   forceStopSession: () => Promise<IPCResponse>;
   getSessionStatus: () => Promise<IPCResponse>;

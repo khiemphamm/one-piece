@@ -12,6 +12,7 @@ export interface ViewerSessionConfig {
   proxy?: Proxy;
   sessionId: number;
   viewerIndex: number;
+  platform?: 'youtube' | 'tiktok';
 }
 
 export class ViewerSession {
@@ -19,11 +20,15 @@ export class ViewerSession {
   private page: Page | null = null;
   private config: ViewerSessionConfig;
   private isActive = false;
-  private fingerprint = generateFingerprint();
+  private fingerprint: any;
   private keepAliveInterval: NodeJS.Timeout | null = null;
 
   constructor(config: ViewerSessionConfig) {
-    this.config = config;
+    this.config = {
+      ...config,
+      platform: config.platform || 'youtube',
+    };
+    this.fingerprint = generateFingerprint(this.config.platform === 'tiktok' ? 'mobile' : 'desktop');
   }
 
   /**
@@ -42,26 +47,32 @@ export class ViewerSession {
         protocolTimeout: 300000, // INCREASED to 300 seconds (5 minutes) for heavy load
         args: [
           '--no-sandbox',
+          '--no-sandbox',
           '--disable-setuid-sandbox',
+          '--disable-infobars',
+          '--window-position=0,0',
+          '--disable-extensions',
+          '--disable-web-security',
+          '--allow-running-insecure-content',
+          '--hide-scrollbars',
+          '--disable-notifications',
+          '--disable-device-discovery-notifications',
+          '--disable-gpu', // Use CPU rendering to save some specific GPU memory overhead
+          '--disable-software-rasterizer',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          // REMOVED: '--mute-audio' - Need audio for real view counting!
+          '--disable-renderer-backgrounding',
           '--disable-background-timer-throttling',
           '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-images', // Additional optimization
-          '--blink-settings=imagesEnabled=false', // Block images at blink level
+          '--disable-breakpad',
+          '--js-flags="--max-old-space-size=256"', // Limit JS heap memory
           
           // CRITICAL: Prevent network requests during launch that cause socket hang up
-          '--disable-component-update', // Disable component updates
-          '--disable-background-networking', // Disable background network requests
-          '--disable-sync', // Disable sync
-          '--disable-default-apps', // Disable default apps
-          '--no-default-browser-check', // Skip default browser check
-          '--disable-client-side-phishing-detection', // Disable phishing detection
+          '--disable-component-update',
+          '--disable-background-networking',
+          '--disable-sync',
+          '--disable-default-apps',
+          '--no-default-browser-check',
+          '--disable-client-side-phishing-detection',
         ],
       };
 
@@ -164,10 +175,10 @@ export class ViewerSession {
       }
 
       this.browser = await puppeteerExtra.launch(launchOptions);
-      this.page = await this.browser.newPage();
+      this.page = await this.browser!.newPage();
 
       // Authenticate proxy if credentials are present
-      if (proxyUsername && proxyPassword) {
+      if (proxyUsername && proxyPassword && this.page) {
         await this.page.authenticate({
           username: proxyUsername,
           password: proxyPassword,
@@ -175,12 +186,22 @@ export class ViewerSession {
         logger.debug(`Authenticated proxy for viewer #${this.config.viewerIndex}`);
       }
 
-      // OPTIMIZATION: Block images, CSS, fonts to reduce CPU/RAM
+      // OPTIMIZATION: Block resources to reduce CPU/RAM
       await this.page.setRequestInterception(true);
       this.page.on('request', (req) => {
         const resourceType = req.resourceType();
-        // Only allow document, script, xhr - block everything else
-        if (['image', 'stylesheet', 'font', 'media'].includes(resourceType)) {
+        const platform = this.config.platform || 'youtube';
+        
+        // List of resources to block
+        const blockedTypes = ['image', 'font'];
+        
+        // YouTube can block CSS and media more aggressively
+        if (platform === 'youtube') {
+          blockedTypes.push('stylesheet', 'media');
+        } 
+        // TikTok needs CSS and Media to count views properly
+        
+        if (blockedTypes.includes(resourceType)) {
           req.abort();
         } else {
           req.continue();
@@ -209,77 +230,29 @@ export class ViewerSession {
         });
       }
 
-      // Navigate to YouTube livestream
+      // Navigate to URL
       await this.page.goto(this.config.url, {
-        waitUntil: 'domcontentloaded', // Changed from networkidle2 for faster load
-        timeout: 180000, // INCREASED to 180 seconds (3 minutes) for slow CPU/network
+        waitUntil: 'domcontentloaded',
+        timeout: 180000,
       });
 
-      // Wait for video player to load
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Wait for player to load (longer for TikTok)
+      await new Promise(resolve => setTimeout(resolve, this.config.platform === 'tiktok' ? 15000 : 5000));
 
-      // AUTO-PLAY VIDEO - CRITICAL FOR VIEW COUNT!
-      try {
-        // Method 1: Click play button if exists
-        const playButton = await this.page.$('button.ytp-large-play-button');
-        if (playButton) {
-          await playButton.click();
-          logger.info(`Viewer #${this.config.viewerIndex} clicked play button`);
-        }
-
-        // Method 2: Programmatically play video
-        await this.page.evaluate(() => {
-          const video = document.querySelector('video');
-          if (video && video.paused) {
-            video.play().catch(() => {}); // Ignore autoplay policy errors
-          }
-        });
-
-        // Wait for video to actually start
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // UNMUTE AND SET VOLUME (Important for view counting!)
-        await this.page.evaluate(() => {
-          const video = document.querySelector('video') as HTMLVideoElement;
-          if (video) {
-            video.muted = false; // Unmute
-            video.volume = 0.3 + Math.random() * 0.4; // Random volume 30-70%
-          }
-        });
-
-        logger.info(`Viewer #${this.config.viewerIndex} unmuted video`);
-
-        // Verify video is playing
-        const isPlaying = await this.page.evaluate(() => {
-          const video = document.querySelector('video');
-          return video && !video.paused && video.currentTime > 0;
-        });
-
-        if (isPlaying) {
-          logger.info(`Viewer #${this.config.viewerIndex} video is playing ✓`);
-        } else {
-          logger.warn(`Viewer #${this.config.viewerIndex} video may not be playing`);
-        }
-
-        // Simulate human behavior: scroll down a bit
-        await this.page.evaluate(() => {
-          self.scrollBy(0, Math.random() * 200 + 100);
-        }).catch(() => {
-          // Ignore scroll errors
-        });
-
-      } catch (playError) {
-        logger.warn(`Auto-play failed for viewer #${this.config.viewerIndex}`, {
-          error: playError instanceof Error ? playError.message : String(playError),
-        });
+      if (this.config.platform === 'tiktok') {
+        await this.handleTikTokStart();
+      } else {
+        await this.handleYouTubeStart();
       }
 
       this.isActive = true;
+      logger.info(`Viewer session #${this.config.viewerIndex} started successfully`);
 
-      logger.info(`Viewer session #${this.config.viewerIndex} started successfully and video playing`);
-
-      // Start keep-alive mechanism
+      // Start keep-alive and interactions
       this.startKeepAlive();
+      if (this.config.platform === 'tiktok') {
+        this.startTikTokInteractions();
+      }
 
     } catch (error) {
       // Enhanced error logging - serialize full error object
@@ -464,6 +437,175 @@ export class ViewerSession {
   }
 
   /**
+   * Handle TikTok-specific initialization
+   */
+  private async handleTikTokStart(): Promise<void> {
+    if (!this.page) return;
+
+    try {
+      logger.info(`Viewer #${this.config.viewerIndex} handling TikTok start...`);
+
+      // 1. Click "Watch Now" or similar if needed (mobile web often has interstitials)
+      // Use standard CSS selectors or XPath for better compatibility
+      const dismissButtons = [
+        'button[data-e2e="close-icon"]',
+        '.tiktok-cookie-banner-close',
+        'button[aria-label="Close"]',
+        '.emu-close-button',
+        'button:has-text("Click to watch LIVE")',
+        'button:has-text("Watch more")',
+      ];
+
+      for (const selector of dismissButtons) {
+        try {
+          const btn = await this.page.$(selector);
+          if (btn) {
+            await btn.click().catch(() => {});
+            logger.debug(`Viewer #${this.config.viewerIndex} clicked button: ${selector}`);
+            await new Promise(r => setTimeout(r, 1000));
+          }
+        } catch (e) {}
+      }
+
+      // Also try clicking by text content using evaluate for better reliability
+      await this.page.evaluate(() => {
+        const buttons = Array.from(document.querySelectorAll('button'));
+        const closeBtn = buttons.find(b => 
+          b.innerText.includes('Not now') || 
+          b.innerText.includes('Close') || 
+          b.innerText.includes('X') ||
+          b.innerText.includes('Click to watch LIVE')
+        );
+        if (closeBtn) (closeBtn as HTMLElement).click();
+      }).catch(() => {});
+
+      // 2. Unmute & Play
+      const playSuccess = await this.page.evaluate(async () => {
+        // Multi-layered unmuting
+        const unmute = () => {
+          const video = document.querySelector('video');
+          if (video) {
+            video.muted = false;
+            video.volume = 0.5 + Math.random() * 0.4;
+            video.play().catch(() => {});
+          }
+          
+          const muteBtn = document.querySelector('[class*="Volume"], [class*="mute"], [aria-label*="unmute"]');
+          if (muteBtn) (muteBtn as HTMLElement).click();
+        };
+
+        unmute();
+        
+        // Wait and check
+        await new Promise(r => setTimeout(r, 2000));
+        const video = document.querySelector('video');
+        return video && !video.paused;
+      });
+
+      if (playSuccess) {
+        logger.info(`Viewer #${this.config.viewerIndex} TikTok video is playing ✓`);
+      } else {
+        logger.warn(`Viewer #${this.config.viewerIndex} TikTok video failed to play automatically`);
+      }
+    } catch (error) {
+      logger.warn(`TikTok start handling failed for viewer #${this.config.viewerIndex}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Handle YouTube-specific initialization
+   */
+  private async handleYouTubeStart(): Promise<void> {
+    if (!this.page) return;
+
+    try {
+      // Method 1: Click play button if exists
+      const playButton = await this.page.$('button.ytp-large-play-button');
+      if (playButton) {
+        await playButton.click();
+      }
+
+      // Method 2: Programmatically play video
+      await this.page.evaluate(() => {
+        const video = document.querySelector('video');
+        if (video && video.paused) {
+          video.play().catch(() => {});
+        }
+        if (video) {
+          video.muted = false;
+          video.volume = 0.3 + Math.random() * 0.4;
+        }
+      });
+    } catch (error) {
+      logger.warn(`YouTube start handling failed for viewer #${this.config.viewerIndex}`, {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  /**
+   * Start TikTok-specific interactions (likes, comments)
+   */
+  private startTikTokInteractions(): void {
+    // Randomized interaction interval
+    const runInteractions = async () => {
+      if (!this.isActive || !this.page) return;
+
+      try {
+        const randomAction = Math.random();
+
+        if (randomAction < 0.3) {
+          // 30% chance to Like (Double Click/Tap)
+          logger.debug(`Viewer #${this.config.viewerIndex} liking TikTok stream...`);
+          await this.page.evaluate(() => {
+            const player = document.querySelector('.video-card-container') || document.body;
+            const x = Math.random() * window.innerWidth;
+            const y = Math.random() * window.innerHeight;
+            
+            // Dispatch double click for hearts
+            const clickEvent = new MouseEvent('dblclick', {
+              view: window,
+              bubbles: true,
+              cancelable: true,
+              clientX: x,
+              clientY: y
+            });
+            player.dispatchEvent(clickEvent);
+          });
+        } else if (randomAction < 0.45) {
+          // 15% chance to Send Comment (Placeholder logic)
+          const comments = ["Hay quá!", "Tuyệt vời", "Xịn xò", "Hello ae", "❤️❤️❤️", "🔥 🔥 🔥"];
+          const comment = comments[Math.floor(Math.random() * comments.length)];
+          
+          logger.debug(`Viewer #${this.config.viewerIndex} sending comment: ${comment}`);
+          
+          // Note: Sending comments usually requires login. 
+          // For guest views, we might just simulate clicking the comment box.
+          await this.page.evaluate((text) => {
+            const input = document.querySelector('div[contenteditable="true"]') || document.querySelector('input[placeholder*="comment"]');
+            if (input) {
+              // Simulating typing is complex in guest mode, just a placeholder
+              console.log("Simulating comment input for:", text);
+            }
+          }, comment);
+        }
+
+        // Schedule next interaction
+        const nextDelay = (30 + Math.random() * 90) * 1000; // 30s to 2min
+        setTimeout(runInteractions, nextDelay);
+      } catch (error) {
+        logger.debug(`TikTok interaction failed for #${this.config.viewerIndex}: ${error}`);
+        setTimeout(runInteractions, 60000); 
+      }
+    };
+
+    // Initial delay
+    setTimeout(runInteractions, (10 + Math.random() * 20) * 1000);
+  }
+
+  /**
    * Check if session is active
    */
   getStatus(): boolean {
@@ -480,6 +622,7 @@ export class ViewerSession {
       isActive: this.isActive,
       proxy: this.config.proxy?.proxy_url,
       userAgent: this.fingerprint.userAgent,
+      platform: this.config.platform,
     };
   }
 }

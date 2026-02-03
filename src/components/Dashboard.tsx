@@ -12,6 +12,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStatsUpdate }) => {
   // Form state
   const [livestreamUrl, setLivestreamUrl] = useState('');
   const [viewerCount, setViewerCount] = useState(10);
+  const [platform, setPlatform] = useState<'youtube' | 'tiktok'>('youtube');
   const [isRunning, setIsRunning] = useState(false);
 
   // Stats state
@@ -107,7 +108,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStatsUpdate }) => {
     }
 
     try {
-      const result = await window.electron.startSession(livestreamUrl, viewerCount);
+      const result = await window.electron.startSession(livestreamUrl, viewerCount, platform);
 
       if (!result.success) {
         addToast(result.error || 'Failed to start session', 'error');
@@ -184,6 +185,31 @@ const Dashboard: React.FC<DashboardProps> = ({ onStatsUpdate }) => {
             </div>
 
             <div className="space-y-4">
+              <div className="flex bg-gray-100 p-1 rounded-xl gap-1">
+                <button
+                  onClick={() => setPlatform('youtube')}
+                  disabled={isRunning}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    platform === 'youtube'
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  📺 YouTube
+                </button>
+                <button
+                  onClick={() => setPlatform('tiktok')}
+                  disabled={isRunning}
+                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                    platform === 'tiktok'
+                      ? 'bg-white text-pink-600 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                >
+                  🎵 TikTok
+                </button>
+              </div>
+
               <div className="flex items-center gap-3">
                 <div className="flex-1 relative">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
@@ -191,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({ onStatsUpdate }) => {
                   </div>
                   <input
                     type="text"
-                    placeholder="https://youtube.com/watch?v=..."
+                    placeholder={platform === 'tiktok' ? "https://tiktok.com/@user/live" : "https://youtube.com/watch?v=..."}
                     value={livestreamUrl}
                     onChange={(e) => setLivestreamUrl(e.target.value)}
                     disabled={isRunning}

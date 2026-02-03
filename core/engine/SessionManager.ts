@@ -9,6 +9,7 @@ export interface SessionConfig {
   viewerCount: number;
   useProxyAllocation?: boolean; // Enable smart proxy allocation feature
   maxViewersPerProxy?: number; // Override default max viewers per proxy
+  platform?: 'youtube' | 'tiktok';
 }
 
 export interface SessionStats {
@@ -19,6 +20,9 @@ export interface SessionStats {
   memoryUsage: number;
   startTime?: number; // Unix timestamp when session started
 }
+
+// Increase EventEmitter limit for many sessions
+process.setMaxListeners(50);
 
 export class SessionManager {
   private sessions: ViewerSession[] = [];
@@ -42,9 +46,9 @@ export class SessionManager {
 
       // Create session in database
       const result = db.prepare(`
-        INSERT INTO sessions (livestream_url, viewer_count, status)
-        VALUES (?, ?, 'active')
-      `).run(config.livestreamUrl, config.viewerCount);
+        INSERT INTO sessions (livestream_url, viewer_count, status, platform)
+        VALUES (?, ?, 'active', ?)
+      `).run(config.livestreamUrl, config.viewerCount, config.platform || 'youtube');
 
       this.currentSessionId = result.lastInsertRowid as number;
       
@@ -117,11 +121,19 @@ export class SessionManager {
           logger.warn(`No available proxy for viewer #${i + 1}`);
         }
 
+        // Check for memory pressure before starting each viewer
+        const stats = this.resourceMonitor.getStats(this.sessions.length);
+        if (stats.memoryUsage.percentage > 95) {
+          logger.warn(`Skipping viewer #${i + 1} due to high memory usage (${stats.memoryUsage.percentage.toFixed(1)}%)`);
+          continue;
+        }
+
         const viewerSession = new ViewerSession({
           url: config.livestreamUrl,
           proxy: proxy || undefined,
           sessionId: this.currentSessionId,
           viewerIndex: i + 1,
+          platform: config.platform || 'youtube',
         });
 
         this.sessions.push(viewerSession);

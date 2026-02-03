@@ -70,13 +70,14 @@ app.on('window-all-closed', () => {
 /**
  * Start a new viewer session
  */
-ipcMain.handle('start-session', async (_event, livestreamUrl: string, viewerCount: number) => {
+ipcMain.handle('start-session', async (_event, livestreamUrl: string, viewerCount: number, platform?: 'youtube' | 'tiktok') => {
   try {
-    logger.info('IPC: start-session called', { livestreamUrl, viewerCount });
+    logger.info('IPC: start-session called', { livestreamUrl, viewerCount, platform });
     
     await SessionManager.startSession({
       livestreamUrl,
       viewerCount,
+      platform,
     });
     
     return { success: true };

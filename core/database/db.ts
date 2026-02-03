@@ -218,7 +218,20 @@ function initializeTables() {
     
     const columns = tableInfo[0]?.values.map(row => row[1]) || [];
     logger.info('Existing columns', { columns });
+
+    // Sessions table migrations
+    const sessionsTableInfo = db.exec("PRAGMA table_info(sessions)");
+    const sessionsColumns = sessionsTableInfo[0]?.values.map(row => row[1]) || [];
     
+    if (!sessionsColumns.includes('platform')) {
+      logger.info('Migrating database: Adding platform column to sessions table');
+      dbWrapper.exec(`
+        ALTER TABLE sessions ADD COLUMN platform TEXT DEFAULT 'youtube'
+      `);
+      logger.info('✅ platform column added to sessions successfully');
+    }
+
+    // Proxies table migrations
     if (!columns.includes('max_viewers_per_proxy')) {
       logger.info('Migrating database: Adding max_viewers_per_proxy column');
       dbWrapper.exec(`
