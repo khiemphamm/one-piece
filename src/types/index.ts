@@ -49,3 +49,10 @@ export interface IPCResponse<T = any> {
   data?: T;
   error?: string;
 }
+
+export interface UpdateInfo {
+  version?: string;
+  releaseName?: string;
+  releaseNotes?: unknown;
+  releaseDate?: string;
+}

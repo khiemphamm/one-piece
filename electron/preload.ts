@@ -26,13 +26,21 @@ contextBridge.exposeInMainWorld('electron', {
   },
 
   // Auto-update
-  onUpdateAvailable: (callback: () => void) => {
-    ipcRenderer.on('update-available', () => callback());
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => {
+    ipcRenderer.on('update-available', (_event: any, info: UpdateInfo) => callback(info));
   },
-  onUpdateDownloaded: (callback: () => void) => {
-    ipcRenderer.on('update-downloaded', () => callback());
+  onUpdateNotAvailable: (callback: (info: UpdateInfo) => void) => {
+    ipcRenderer.on('update-not-available', (_event: any, info: UpdateInfo) => callback(info));
+  },
+  onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => {
+    ipcRenderer.on('update-downloaded', (_event: any, info: UpdateInfo) => callback(info));
+  },
+  onUpdateError: (callback: (error: UpdateError) => void) => {
+    ipcRenderer.on('update-error', (_event: any, error: UpdateError) => callback(error));
   },
   installUpdate: () => ipcRenderer.invoke('install-update'),
+  checkForUpdates: () => ipcRenderer.invoke('check-updates'),
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 });
 
 // Type definitions for window.electron
@@ -40,6 +48,17 @@ export interface IPCResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface UpdateInfo {
+  version?: string;
+  releaseName?: string;
+  releaseNotes?: unknown;
+  releaseDate?: string;
+}
+
+export interface UpdateError {
+  message: string;
 }
 
 export interface ElectronAPI {
@@ -56,9 +75,13 @@ export interface ElectronAPI {
   removeProxy: (proxyId: number) => Promise<IPCResponse>;
   onLog: (callback: (log: any) => void) => void;
   onStatsUpdate: (callback: (stats: any) => void) => void;
-  onUpdateAvailable: (callback: () => void) => void;
-  onUpdateDownloaded: (callback: () => void) => void;
+  onUpdateAvailable: (callback: (info: UpdateInfo) => void) => void;
+  onUpdateNotAvailable: (callback: (info: UpdateInfo) => void) => void;
+  onUpdateDownloaded: (callback: (info: UpdateInfo) => void) => void;
+  onUpdateError: (callback: (error: UpdateError) => void) => void;
   installUpdate: () => Promise<void>;
+  checkForUpdates: () => Promise<IPCResponse<{ updateInfo?: UpdateInfo }>>;
+  getAppVersion: () => Promise<IPCResponse<{ version: string }>>;
 }
 
 declare global {

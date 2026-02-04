@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Dashboard from './components/Dashboard';
 import ProxyManager from './components/ProxyManager';
+import UpdateCenter from './components/UpdateCenter';
 import UpdateNotification from './components/UpdateNotification';
 import type { StatsUpdate } from './types';
 
-type TabType = 'dashboard' | 'proxies';
+type TabType = 'dashboard' | 'proxies' | 'updates';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
@@ -23,6 +24,7 @@ function App() {
   const tabs = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: '📊' },
     { id: 'proxies' as TabType, label: 'Proxies', icon: '🌐' },
+    { id: 'updates' as TabType, label: 'Updates', icon: '⬇️' },
   ];
 
   return (
@@ -95,6 +97,7 @@ function App() {
         <div className="animate-fade-in">
           {activeTab === 'dashboard' && <Dashboard onStatsUpdate={handleStatsUpdate} />}
           {activeTab === 'proxies' && <ProxyManager />}
+          {activeTab === 'updates' && <UpdateCenter />}
         </div>
       </main>
 

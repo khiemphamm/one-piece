@@ -10,11 +10,11 @@ const UpdateNotification: React.FC<UpdateNotificationProps> = ({ onInstall }) =>
 
   useEffect(() => {
     if (window.electron) {
-      window.electron.onUpdateAvailable(() => {
+      window.electron.onUpdateAvailable(_info => {
         setShow(true);
       });
 
-      window.electron.onUpdateDownloaded(() => {
+      window.electron.onUpdateDownloaded(_info => {
         setDownloaded(true);
       });
     }

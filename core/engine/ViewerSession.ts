@@ -1,10 +1,14 @@
-import { Browser, Page } from 'puppeteer';
+import * as puppeteer from 'puppeteer';
+import type { Browser, Page } from 'puppeteer';
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import puppeteerExtra from 'puppeteer-extra';
 import { generateFingerprint, applyFingerprint } from '../anti-detection/fingerprint';
 import type { Proxy } from '../proxy/ProxyManager';
 import logger from '../utils/logger';
 
-const puppeteerExtra = require('puppeteer-extra');
 puppeteerExtra.use(StealthPlugin());
 
 export interface ViewerSessionConfig {
@@ -112,10 +116,6 @@ export class ViewerSession {
       // WORKAROUND: Use system Chrome instead of Puppeteer's Chromium
       // Puppeteer's Chromium may have system-level issues (socket hang up on some macOS systems)
       try {
-        const fs = require('fs');
-        const os = require('os');
-        const path = require('path');
-
         let systemChromePath: string | null = null;
         const platform = os.platform();
 
@@ -175,7 +175,6 @@ export class ViewerSession {
           logger.info(`Using system Chrome: ${systemChromePath}`);
         } else {
           // Fallback to Puppeteer's Chromium
-          const puppeteer = require('puppeteer');
           const executablePath = puppeteer.executablePath();
 
           if (executablePath) {
@@ -294,14 +293,18 @@ export class ViewerSession {
           this.page.removeAllListeners();
           await this.page.close();
           this.page = null;
-        } catch (e) {}
+        } catch (e) {
+          // Ignore cleanup errors during shutdown.
+        }
       }
 
       if (this.browser) {
         try {
           await this.browser.close();
           this.browser = null;
-        } catch (e) {}
+        } catch (e) {
+          // Ignore cleanup errors during shutdown.
+        }
       }
       logger.info(`Viewer session #${this.config.viewerIndex} stopped`);
     } catch (error) {
@@ -340,7 +343,9 @@ export class ViewerSession {
             })
             .catch(() => {});
         }
-      } catch (e) {}
+      } catch (e) {
+        // Ignore transient keep-alive errors.
+      }
     }, intervalMs);
   }
 
@@ -368,7 +373,9 @@ export class ViewerSession {
           video.play().catch(() => {});
         }
       });
-    } catch (e) {}
+    } catch (e) {
+      // Ignore TikTok start errors to keep session alive.
+    }
   }
 
   private async handleYouTubeStart(): Promise<void> {
@@ -383,7 +390,9 @@ export class ViewerSession {
           video.muted = false;
         }
       });
-    } catch (e) {}
+    } catch (e) {
+      // Ignore YouTube start errors to keep session alive.
+    }
   }
 
   private startTikTokInteractions(): void {

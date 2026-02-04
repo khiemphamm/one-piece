@@ -4,6 +4,11 @@ import fs from 'fs';
 import { app } from 'electron';
 import logger from '../utils/logger';
 
+type SqlJsQueryResult = {
+  columns: string[];
+  values: unknown[][];
+};
+
 // Default DB path (fallback for initialization)
 let DB_PATH: string;
 try {
@@ -113,29 +118,29 @@ class DatabaseWrapper {
         }
       },
       get: (...params: any[]) => {
-        const results = db.exec(sql, params);
+        const results = db.exec(sql, params) as SqlJsQueryResult[];
         if (results.length === 0) return undefined;
 
         const columns = results[0].columns;
         const values = results[0].values[0];
         if (!values) return undefined;
 
-        const row: any = {};
-        columns.forEach((col, idx) => {
+        const row: Record<string, unknown> = {};
+        columns.forEach((col: string, idx: number) => {
           row[col] = values[idx];
         });
         return row;
       },
       all: (...params: any[]) => {
-        const results = db.exec(sql, params);
+        const results = db.exec(sql, params) as SqlJsQueryResult[];
         if (results.length === 0) return [];
 
         const columns = results[0].columns;
         const values = results[0].values;
 
-        return values.map(row => {
-          const obj: any = {};
-          columns.forEach((col, idx) => {
+        return values.map((row: unknown[]) => {
+          const obj: Record<string, unknown> = {};
+          columns.forEach((col: string, idx: number) => {
             obj[col] = row[idx];
           });
           return obj;
@@ -229,18 +234,20 @@ function initializeTables() {
     logger.info('Starting database migration check...');
 
     // Check if proxies table has current_viewers column
-    const tableInfo = db.exec('PRAGMA table_info(proxies)');
+    const tableInfo = db.exec('PRAGMA table_info(proxies)') as SqlJsQueryResult[];
     logger.info('Table info retrieved', {
       hasResults: tableInfo.length > 0,
       columnCount: tableInfo[0]?.values.length || 0,
     });
 
-    const columns = tableInfo[0]?.values.map(row => row[1]) || [];
+    const columns = (tableInfo[0]?.values ?? []).map((row: unknown[]) => String(row[1]));
     logger.info('Existing columns', { columns });
 
     // Sessions table migrations
-    const sessionsTableInfo = db.exec('PRAGMA table_info(sessions)');
-    const sessionsColumns = sessionsTableInfo[0]?.values.map(row => row[1]) || [];
+    const sessionsTableInfo = db.exec('PRAGMA table_info(sessions)') as SqlJsQueryResult[];
+    const sessionsColumns = (sessionsTableInfo[0]?.values ?? []).map((row: unknown[]) =>
+      String(row[1])
+    );
 
     if (!sessionsColumns.includes('platform')) {
       logger.info('Migrating database: Adding platform column to sessions table');

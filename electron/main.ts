@@ -64,18 +64,55 @@ function createWindow() {
 }
 
 // AutoUpdater events
-autoUpdater.on('update-available', () => {
-  logger.info('Update available');
-  mainWindow?.webContents.send('update-available');
+autoUpdater.on('update-available', info => {
+  logger.info('Update available', { version: info?.version });
+  mainWindow?.webContents.send('update-available', info);
 });
 
-autoUpdater.on('update-downloaded', () => {
-  logger.info('Update downloaded');
-  mainWindow?.webContents.send('update-downloaded');
+autoUpdater.on('update-not-available', info => {
+  logger.info('Update not available', { version: info?.version });
+  mainWindow?.webContents.send('update-not-available', info);
+});
+
+autoUpdater.on('update-downloaded', info => {
+  logger.info('Update downloaded', { version: info?.version });
+  mainWindow?.webContents.send('update-downloaded', info);
+});
+
+autoUpdater.on('error', error => {
+  logger.error('Auto update error', {
+    error: error instanceof Error ? error.message : String(error),
+  });
+  mainWindow?.webContents.send('update-error', {
+    message: error instanceof Error ? error.message : String(error),
+  });
 });
 
 ipcMain.handle('install-update', () => {
   autoUpdater.quitAndInstall();
+});
+
+ipcMain.handle('check-updates', async () => {
+  if (isDev) {
+    return { success: false, error: 'Auto-update is disabled in development mode.' };
+  }
+
+  try {
+    const result = await autoUpdater.checkForUpdates();
+    return { success: true, data: { updateInfo: result?.updateInfo } };
+  } catch (error) {
+    logger.error('Manual update check failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+});
+
+ipcMain.handle('get-app-version', () => {
+  return { success: true, data: { version: app.getVersion() } };
 });
 
 app.whenReady().then(() => {
