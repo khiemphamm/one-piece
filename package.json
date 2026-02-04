@@ -1,6 +1,6 @@
 {
   "name": "tool-live",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "YouTube Livestream Viewer Bot - Desktop application for managing concurrent viewers",
   "main": "dist/electron/electron/main.js",
   "author": "Khiem Pham",
