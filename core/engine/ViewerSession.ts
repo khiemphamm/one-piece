@@ -1,13 +1,10 @@
-import * as puppeteer from 'puppeteer';
 import type { Browser, Page } from 'puppeteer';
-import fs from 'fs';
-import os from 'os';
-import path from 'path';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 import puppeteerExtra from 'puppeteer-extra';
 import { generateFingerprint, applyFingerprint } from '../anti-detection/fingerprint';
 import type { Proxy } from '../proxy/ProxyManager';
 import logger from '../utils/logger';
+import { resolveChromePath } from '../utils/chrome-path-manager';
 
 puppeteerExtra.use(StealthPlugin());
 
@@ -113,76 +110,16 @@ export class ViewerSession {
         }
       }
 
-      // WORKAROUND: Use system Chrome instead of Puppeteer's Chromium
-      // Puppeteer's Chromium may have system-level issues (socket hang up on some macOS systems)
+      // Use ChromePathManager to resolve Chrome executable path
+      // Supports both auto-detection and user-configured custom path
       try {
-        let systemChromePath: string | null = null;
-        const platform = os.platform();
-
-        // Detect Chrome path based on platform
-        if (platform === 'darwin') {
-          // macOS - Try standard app path first, then common user paths
-          const possiblePaths = [
-            '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-            path.join(os.homedir(), 'Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
-          ];
-
-          for (const chromePath of possiblePaths) {
-            if (fs.existsSync(chromePath)) {
-              systemChromePath = chromePath;
-              break;
-            }
-          }
-        } else if (platform === 'win32') {
-          // Windows - check common installation paths
-          const possiblePaths = [
-            path.join(
-              process.env['PROGRAMFILES'] || 'C:\\Program Files',
-              'Google\\Chrome\\Application\\chrome.exe'
-            ),
-            path.join(
-              process.env['PROGRAMFILES(X86)'] || 'C:\\Program Files (x86)',
-              'Google\\Chrome\\Application\\chrome.exe'
-            ),
-            path.join(process.env['LOCALAPPDATA'] || '', 'Google\\Chrome\\Application\\chrome.exe'),
-          ];
-
-          for (const chromePath of possiblePaths) {
-            if (fs.existsSync(chromePath)) {
-              systemChromePath = chromePath;
-              break;
-            }
-          }
-        } else if (platform === 'linux') {
-          // Linux
-          const possiblePaths = [
-            '/usr/bin/google-chrome',
-            '/usr/bin/google-chrome-stable',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
-          ];
-
-          for (const chromePath of possiblePaths) {
-            if (fs.existsSync(chromePath)) {
-              systemChromePath = chromePath;
-              break;
-            }
-          }
-        }
-
-        if (systemChromePath && fs.existsSync(systemChromePath)) {
-          launchOptions.executablePath = systemChromePath;
-          logger.info(`Using system Chrome: ${systemChromePath}`);
+        const chromePath = resolveChromePath();
+        
+        if (chromePath) {
+          launchOptions.executablePath = chromePath;
+          logger.info(`Using Chrome: ${chromePath}`);
         } else {
-          // Fallback to Puppeteer's Chromium
-          const executablePath = puppeteer.executablePath();
-
-          if (executablePath) {
-            launchOptions.executablePath = executablePath;
-            logger.info(`System Chrome not found, using Puppeteer Chromium: ${executablePath}`);
-          } else {
-            logger.warn('No Chrome/Chromium executable found');
-          }
+          logger.warn('No Chrome/Chromium executable found');
         }
       } catch (pathError) {
         logger.error('Failed to set executable path', {

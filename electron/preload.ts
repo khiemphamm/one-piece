@@ -15,6 +15,13 @@ contextBridge.exposeInMainWorld('electron', {
   getProxies: () => ipcRenderer.invoke('get-proxies'),
   removeProxy: (proxyId: number) => ipcRenderer.invoke('remove-proxy', proxyId),
 
+  // Chrome path management
+  getChromePath: () => ipcRenderer.invoke('get-chrome-path'),
+  setChromePath: (mode: 'auto' | 'manual', customPath?: string) =>
+    ipcRenderer.invoke('set-chrome-path', mode, customPath),
+  browseChromePath: () => ipcRenderer.invoke('browse-chrome-path'),
+  validateChromePath: (path: string) => ipcRenderer.invoke('validate-chrome-path', path),
+
   // Logs
   onLog: (callback: (log: any) => void) => {
     ipcRenderer.on('log', (_event: any, log: any) => callback(log));
@@ -61,6 +68,27 @@ export interface UpdateError {
   message: string;
 }
 
+export interface ChromePathConfig {
+  mode: 'auto' | 'manual';
+  customPath?: string;
+}
+
+export interface DetectedChromePath {
+  path: string;
+  source: string;
+}
+
+export interface ChromePathData {
+  config: ChromePathConfig;
+  detectedPaths: DetectedChromePath[];
+  currentPath: string | null;
+}
+
+export interface BrowsePathResult {
+  canceled: boolean;
+  path?: string;
+}
+
 export interface ElectronAPI {
   startSession: (
     url: string,
@@ -73,6 +101,13 @@ export interface ElectronAPI {
   addProxies: (proxies: string[]) => Promise<IPCResponse>;
   getProxies: () => Promise<IPCResponse>;
   removeProxy: (proxyId: number) => Promise<IPCResponse>;
+  
+  // Chrome path management
+  getChromePath: () => Promise<IPCResponse<ChromePathData>>;
+  setChromePath: (mode: 'auto' | 'manual', customPath?: string) => Promise<IPCResponse<{ config: ChromePathConfig; currentPath: string | null }>>;
+  browseChromePath: () => Promise<IPCResponse<BrowsePathResult>>;
+  validateChromePath: (path: string) => Promise<IPCResponse<{ valid: boolean; error?: string }>>;
+
   onLog: (callback: (log: any) => void) => void;
   onStatsUpdate: (callback: (stats: any) => void) => void;
   onUpdateAvailable: (callback: (info: UpdateInfo) => void) => void;

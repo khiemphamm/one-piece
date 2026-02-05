@@ -12,9 +12,9 @@ type SqlJsQueryResult = {
 // Default DB path (fallback for initialization)
 let DB_PATH: string;
 try {
-  DB_PATH = path.join(process.cwd(), 'data', 'tool-live.db');
+  DB_PATH = path.join(process.cwd(), 'data', 'one-piece.db');
 } catch {
-  DB_PATH = 'tool-live.db'; // Simple fallback
+  DB_PATH = 'one-piece.db'; // Simple fallback
 }
 
 // In production, we'll override this

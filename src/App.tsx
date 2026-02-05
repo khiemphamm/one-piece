@@ -3,13 +3,17 @@ import Dashboard from './components/Dashboard';
 import ProxyManager from './components/ProxyManager';
 import UpdateCenter from './components/UpdateCenter';
 import UpdateNotification from './components/UpdateNotification';
+import Settings from './components/Settings';
+import LogsPanel from './components/LogsPanel';
 import type { StatsUpdate } from './types';
+import { ToastContainer, Toast } from './components/Toast';
 
-type TabType = 'dashboard' | 'proxies' | 'updates';
+type TabType = 'dashboard' | 'proxies' | 'settings' | 'logs' | 'updates';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabType>('dashboard');
   const [stats, setStats] = useState<StatsUpdate | null>(null);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   const handleStatsUpdate = (update: StatsUpdate) => {
     setStats(update);
@@ -21,9 +25,21 @@ function App() {
     }
   };
 
+  // Toast helpers
+  const addToast = (message: string, type: Toast['type']) => {
+    const id = `toast-${Date.now()}-${Math.random()}`;
+    setToasts((prev) => [...prev, { id, message, type }]);
+  };
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
   const tabs = [
     { id: 'dashboard' as TabType, label: 'Dashboard', icon: '📊' },
     { id: 'proxies' as TabType, label: 'Proxies', icon: '🌐' },
+    { id: 'logs' as TabType, label: 'Logs', icon: '📋' },
+    { id: 'settings' as TabType, label: 'Settings', icon: '⚙️' },
     { id: 'updates' as TabType, label: 'Updates', icon: '⬇️' },
   ];
 
@@ -97,12 +113,17 @@ function App() {
         <div className="animate-fade-in">
           {activeTab === 'dashboard' && <Dashboard onStatsUpdate={handleStatsUpdate} />}
           {activeTab === 'proxies' && <ProxyManager />}
+          {activeTab === 'logs' && <LogsPanel />}
+          {activeTab === 'settings' && <Settings onToast={addToast} />}
           {activeTab === 'updates' && <UpdateCenter />}
         </div>
       </main>
 
       {/* Update Notification */}
       <UpdateNotification onInstall={handleInstallUpdate} />
+
+      {/* Toast Notifications */}
+      <ToastContainer toasts={toasts} onRemove={removeToast} />
 
       {/* Footer */}
       <footer className="mt-auto py-4 text-center text-xs text-gray-500 border-t border-gray-200">

@@ -1,10 +1,11 @@
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import path from 'path';
 import SessionManager from '../core/engine/SessionManager';
 import ProxyManager from '../core/proxy/ProxyManager';
-import logger, { setLogDirectory } from '../core/utils/logger';
+import logger, { setLogDirectory, setLogBroadcastCallback } from '../core/utils/logger';
 import { dbReady, setDatabasePath } from '../core/database/db';
+import ChromePathManager from '../core/utils/chrome-path-manager';
 
 const isDev = !app.isPackaged;
 
@@ -12,7 +13,7 @@ const isDev = !app.isPackaged;
 if (!isDev) {
   const userDataPath = app.getPath('userData');
   setLogDirectory(path.join(userDataPath, 'logs'));
-  setDatabasePath(path.join(userDataPath, 'data', 'tool-live.db'));
+  setDatabasePath(path.join(userDataPath, 'data', 'one-piece.db'));
 }
 
 let mainWindow: BrowserWindow | null = null;
@@ -48,6 +49,13 @@ function createWindow() {
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
+
+    // Setup log broadcast to renderer
+    setLogBroadcastCallback((log) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('log', log);
+      }
+    });
 
     // Start broadcasting stats
     startStatsBroadcast();
@@ -290,6 +298,157 @@ ipcMain.handle('remove-proxy', async (_event, proxyId: number) => {
     return { success: true };
   } catch (error) {
     logger.error('IPC: remove-proxy failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+});
+
+// ============================================
+// CHROME PATH MANAGEMENT
+// ============================================
+
+/**
+ * Get current Chrome path configuration
+ */
+ipcMain.handle('get-chrome-path', async _event => {
+  try {
+    const config = ChromePathManager.getChromePath();
+    const detectedPaths = ChromePathManager.getAllDetectedPaths();
+    const currentPath = ChromePathManager.resolveChromePath();
+
+    return {
+      success: true,
+      data: {
+        config,
+        detectedPaths,
+        currentPath,
+      },
+    };
+  } catch (error) {
+    logger.error('IPC: get-chrome-path failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+});
+
+/**
+ * Set Chrome path configuration
+ */
+ipcMain.handle(
+  'set-chrome-path',
+  async (_event, mode: 'auto' | 'manual', customPath?: string) => {
+    try {
+      logger.info('IPC: set-chrome-path called', { mode, customPath });
+
+      // Validate custom path if provided
+      if (mode === 'manual' && customPath) {
+        const validation = ChromePathManager.validateChromePath(customPath);
+        if (!validation.valid) {
+          return {
+            success: false,
+            error: validation.error || 'Invalid Chrome path',
+          };
+        }
+      }
+
+      ChromePathManager.setChromePath({ mode, customPath });
+
+      // Get the resolved path after setting
+      const resolvedPath = ChromePathManager.resolveChromePath();
+
+      return {
+        success: true,
+        data: {
+          config: ChromePathManager.getChromePath(),
+          currentPath: resolvedPath,
+        },
+      };
+    } catch (error) {
+      logger.error('IPC: set-chrome-path failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      };
+    }
+  }
+);
+
+/**
+ * Open file dialog to browse for Chrome executable
+ */
+ipcMain.handle('browse-chrome-path', async _event => {
+  try {
+    if (!mainWindow) {
+      return { success: false, error: 'No window available' };
+    }
+
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Select Chrome/Chromium Executable',
+      properties: ['openFile'],
+      filters:
+        process.platform === 'win32'
+          ? [
+              { name: 'Executables', extensions: ['exe'] },
+              { name: 'All Files', extensions: ['*'] },
+            ]
+          : [{ name: 'All Files', extensions: ['*'] }],
+    });
+
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: true, data: { canceled: true } };
+    }
+
+    const selectedPath = result.filePaths[0];
+
+    // Validate the selected path
+    const validation = ChromePathManager.validateChromePath(selectedPath);
+    if (!validation.valid) {
+      return {
+        success: false,
+        error: validation.error || 'Invalid Chrome path',
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        canceled: false,
+        path: selectedPath,
+      },
+    };
+  } catch (error) {
+    logger.error('IPC: browse-chrome-path failed', {
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+});
+
+/**
+ * Validate a Chrome path
+ */
+ipcMain.handle('validate-chrome-path', async (_event, chromePath: string) => {
+  try {
+    const validation = ChromePathManager.validateChromePath(chromePath);
+    return {
+      success: true,
+      data: validation,
+    };
+  } catch (error) {
+    logger.error('IPC: validate-chrome-path failed', {
       error: error instanceof Error ? error.message : String(error),
     });
     return {

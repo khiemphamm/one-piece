@@ -1,6 +1,6 @@
 {
-  "name": "tool-live",
-  "version": "1.0.2",
+  "name": "one-piece",
+  "version": "1.0.3",
   "description": "YouTube Livestream Viewer Bot - Desktop application for managing concurrent viewers",
   "main": "dist/electron/electron/main.js",
   "author": "Khiem Pham",
@@ -18,7 +18,7 @@
     "format": "prettier --write \"**/*.{ts,tsx,json,md}\"",
     "package": "npm run build && electron-builder",
     "package:win": "npm run build && electron-builder --win",
-    "package:win-portable": "npm run build && electron-packager . \"Tool Live\" --platform=win32 --arch=x64 --out=release --overwrite --ignore=\"^/(src|electron|scripts|logs|data|.github|node_modules/.cache)\" --icon=build/icon.ico",
+    "package:win-portable": "npm run build && electron-packager . \"One Piece\" --platform=win32 --arch=x64 --out=release --overwrite --ignore=\"^/(src|electron|scripts|logs|data|.github|node_modules/.cache)\" --icon=build/icon.ico",
     "package:mac": "npm run build && electron-builder --mac",
     "package:linux": "npm run build && electron-builder --linux"
   },
@@ -64,8 +64,8 @@
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.tool-live.app",
-    "productName": "Tool Live",
+    "appId": "com.one-piece.app",
+    "productName": "One Piece",
     "directories": {
       "output": "release"
     },
@@ -116,7 +116,7 @@
       "allowElevation": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Tool Live",
+      "shortcutName": "One Piece",
       "installerIcon": "build/icon.ico",
       "uninstallerIcon": "build/icon.ico"
     },
@@ -141,16 +141,16 @@
       {
         "provider": "github",
         "owner": "khiemphamm",
-        "repo": "tool-live"
+        "repo": "one-piece"
       }
     ]
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/khiemphamm/tool-live.git"
+    "url": "git+https://github.com/khiemphamm/one-piece.git"
   },
   "bugs": {
-    "url": "https://github.com/khiemphamm/tool-live/issues"
+    "url": "https://github.com/khiemphamm/one-piece/issues"
   },
-  "homepage": "https://github.com/khiemphamm/tool-live#readme"
+  "homepage": "https://github.com/khiemphamm/one-piece#readme"
 }
